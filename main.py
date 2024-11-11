@@ -3,57 +3,13 @@ import re
 from file_operations import count_media_entries, handle_existing_folders, safe_create_dir
 from media_processor import MediaProcessor
 
-def process_m3u_file(m3u_file_path, is_tvshows):
-    """Process a single M3U file"""
-    # Get base name for output directories
-    list_name = os.path.splitext(os.path.basename(m3u_file_path))[0]
-    current_directory = os.getcwd()
-    
-    # Setup output directories paths (but don't create them yet)
-    output_dir_grouped = os.path.join(current_directory, list_name)
-    # For flat directory, always add '-flat' suffix regardless of original name
-    output_dir_flat = os.path.join(current_directory, f"{list_name}-flat")
-    
-    # Count media entries first to ensure file is valid
-    media_count = count_media_entries(m3u_file_path)
-    if media_count == 0:
-        print(f"No valid media entries found in '{m3u_file_path}'.")
-        return
-        
-    media_type = "shows" if is_tvshows else "movies"
-    print(f"\n'{m3u_file_path}' contains {media_count} {media_type}.")
-    
-    # Handle existing folders before any directory creation
-    if not handle_existing_folders(output_dir_grouped, output_dir_flat):
-        print(f"\nSkipping '{m3u_file_path}' as folder handling was cancelled.")
-        return
-    
-    # Now create the directories if needed
-    if not safe_create_dir(output_dir_grouped) or not safe_create_dir(output_dir_flat):
-        print(f"\nSkipping '{m3u_file_path}' due to directory creation errors.")
-        return
-
-    # Get number of entries to process
-    num_to_process = get_num_to_process(media_count, media_type, m3u_file_path)
-    if num_to_process is None:
-        return
-
-    # Initialize media processor
-    processor = MediaProcessor(output_dir_grouped, output_dir_flat)
-    
-    try:
-        process_entries(m3u_file_path, processor, num_to_process, is_tvshows)
-        print_completion_summary(processor, m3u_file_path)
-    except Exception as e:
-        print(f"\nError processing file: {str(e)}")
-
 def get_num_to_process(media_count, media_type, m3u_file):
     """Get the number of entries to process from user input"""
     while True:
         try:
             num_input = input(
                 f"How many {media_type} would you like to process from '{m3u_file}'? "
-                f"(Enter 'all' or a number): "
+                f"(Enter 'all' or a number 1-{media_count}): "
             ).strip().lower()
             
             if num_input == 'all':
@@ -98,6 +54,72 @@ def print_completion_summary(processor, m3u_file):
     for line in processor.get_completion_summary(m3u_file):
         print(line)
 
+def get_processing_info(m3u_files):
+    """Get processing information for all files upfront"""
+    processing_info = {}
+    
+    print("\nChecking M3U files...")
+    for m3u_file in m3u_files:
+        m3u_file_path = os.path.join(os.getcwd(), m3u_file)
+        
+        # Validate file exists and is readable
+        if not os.path.isfile(m3u_file_path):
+            print(f"Error: File '{m3u_file}' not found or not accessible.")
+            continue
+            
+        # Check if the file is for TV shows or movies
+        is_tvshows = 'tvshows' in m3u_file.lower() or 'shows' in m3u_file.lower()
+        media_type = "shows" if is_tvshows else "movies"
+        
+        # Count media entries
+        media_count = count_media_entries(m3u_file_path)
+        if media_count == 0:
+            print(f"No valid media entries found in '{m3u_file}'.")
+            continue
+            
+        print(f"\n'{m3u_file}' contains {media_count} {media_type}.")
+        
+        # Get number of entries to process
+        num_to_process = get_num_to_process(media_count, media_type, m3u_file)
+        if num_to_process is None:
+            return None
+            
+        # Setup output directories paths
+        output_dir_grouped = os.path.join(os.getcwd(), os.path.splitext(m3u_file)[0])
+        output_dir_flat = os.path.join(os.getcwd(), f"{os.path.splitext(m3u_file)[0]}-flat")
+        
+        # Store processing info
+        processing_info[m3u_file] = {
+            'path': m3u_file_path,
+            'is_tvshows': is_tvshows,
+            'num_to_process': num_to_process,
+            'output_dir_grouped': output_dir_grouped,
+            'output_dir_flat': output_dir_flat
+        }
+    
+    return processing_info
+
+def process_m3u_file(m3u_file, info):
+    """Process a single M3U file"""
+    # Handle existing folders before any directory creation
+    if not handle_existing_folders(info['output_dir_grouped'], info['output_dir_flat']):
+        print(f"\nSkipping '{m3u_file}' as folder handling was cancelled.")
+        return
+    
+    # Now create the directories if needed
+    if not safe_create_dir(info['output_dir_grouped']) or not safe_create_dir(info['output_dir_flat']):
+        print(f"\nSkipping '{m3u_file}' due to directory creation errors.")
+        return
+
+    # Initialize media processor
+    processor = MediaProcessor(info['output_dir_grouped'], info['output_dir_flat'])
+    
+    try:
+        process_entries(info['path'], processor, info['num_to_process'], info['is_tvshows'])
+        print_completion_summary(processor, m3u_file)
+    except Exception as e:
+        print(f"\nError processing file: {str(e)}")
+
 def main():
     """Main entry point"""
     try:
@@ -107,19 +129,15 @@ def main():
         if not m3u_files:
             print("No .m3u files found in the current directory.")
             return
-        
-        for m3u_file in m3u_files:
-            m3u_file_path = os.path.join(current_directory, m3u_file)
             
-            # Validate file exists and is readable
-            if not os.path.isfile(m3u_file_path):
-                print(f"Error: File '{m3u_file}' not found or not accessible.")
-                continue
-                
-            # Check if the file is for TV shows or movies
-            is_tvshows = 'tvshows' in m3u_file.lower() or 'shows' in m3u_file.lower()
+        # Get processing information for all files upfront
+        processing_info = get_processing_info(m3u_files)
+        if not processing_info:
+            return
             
-            process_m3u_file(m3u_file_path, is_tvshows)
+        print("\nStarting processing...")
+        for m3u_file, info in processing_info.items():
+            process_m3u_file(m3u_file, info)
             
     except KeyboardInterrupt:
         print("\nOperation cancelled by user.")

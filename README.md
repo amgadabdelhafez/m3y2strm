@@ -8,6 +8,7 @@ A Python script that converts M3U playlists into STRM files, organizing them int
 - Creates both grouped and flat directory structures
 - Automatically excludes English-named content
 - Handles both movies and TV shows
+- Reorders mixed language titles (Arabic text first)
 - Provides detailed progress and completion statistics
 - Safe handling of existing folders with size information
 - Robust error handling and recovery
@@ -95,6 +96,13 @@ The script creates two directory structures for each M3U file:
 - `media_processor.py`: Core media processing logic
 
 ## Features in Detail
+
+### Mixed Language Handling
+
+- Automatically detects Arabic and English parts in titles
+- Moves Arabic text to the beginning of the name
+- Preserves special suffixes like مدبلج
+- Example: "The Movie عربي" becomes "عربي - The Movie"
 
 ### English Content Exclusion
 
