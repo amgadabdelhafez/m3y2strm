@@ -1,5 +1,5 @@
 import os
-from utils import is_english_name, sanitize_filename, extract_show_info
+from utils import is_english_name, sanitize_filename, extract_show_info, reorder_mixed_language
 from file_operations import safe_create_dir, safe_write_file
 
 class MediaProcessor:
@@ -51,12 +51,15 @@ class MediaProcessor:
 
     def process_movie(self, tvg_name, group_title, stream_url):
         """Process a movie entry"""
+        # Reorder mixed language parts in movie name
+        movie_name = reorder_mixed_language(tvg_name)
+        
         # Create grouped structure (with group-title)
         group_dir = os.path.join(self.output_dir_grouped, sanitize_filename(group_title))
-        movie_dir_grouped = os.path.join(group_dir, sanitize_filename(tvg_name))
+        movie_dir_grouped = os.path.join(group_dir, sanitize_filename(movie_name))
         
         # Create flat structure (without group-title)
-        movie_dir_flat = os.path.join(self.output_dir_flat, sanitize_filename(tvg_name))
+        movie_dir_flat = os.path.join(self.output_dir_flat, sanitize_filename(movie_name))
         
         # Create all necessary directories
         dirs_to_create = [

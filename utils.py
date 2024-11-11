@@ -1,5 +1,73 @@
 import re
 
+def is_arabic_char(char):
+    """Check if a character is Arabic"""
+    return '\u0600' <= char <= '\u06FF'
+
+def split_arabic_english(text):
+    """Split text into Arabic and English parts"""
+    arabic_parts = []
+    english_parts = []
+    current_part = ""
+    current_type = None  # None, 'arabic', or 'english'
+    
+    for char in text:
+        if char.isspace():
+            if current_part:
+                if current_type == 'arabic':
+                    arabic_parts.append(current_part)
+                else:
+                    english_parts.append(current_part)
+                current_part = ""
+                current_type = None
+            continue
+            
+        is_arabic = is_arabic_char(char)
+        
+        # If we're starting a new part or switching scripts
+        if current_type is None or (is_arabic and current_type == 'english') or (not is_arabic and current_type == 'arabic'):
+            if current_part:
+                if current_type == 'arabic':
+                    arabic_parts.append(current_part)
+                else:
+                    english_parts.append(current_part)
+                current_part = ""
+            current_type = 'arabic' if is_arabic else 'english'
+        
+        current_part += char
+    
+    # Add the last part
+    if current_part:
+        if current_type == 'arabic':
+            arabic_parts.append(current_part)
+        else:
+            english_parts.append(current_part)
+    
+    return arabic_parts, english_parts
+
+def reorder_mixed_language(text):
+    """Reorder mixed language text to put Arabic first"""
+    # Handle special case for مدبلج
+    dubbed_suffix = ""
+    if text.strip().endswith('مدبلج'):
+        text = text.strip()[:-4].strip()
+        dubbed_suffix = " مدبلج"
+    
+    # Split into Arabic and English parts
+    arabic_parts, english_parts = split_arabic_english(text)
+    
+    # Combine parts with Arabic first
+    result = " ".join(arabic_parts)
+    if english_parts and result:
+        result += " - "
+    result += " ".join(english_parts)
+    
+    # Add back مدبلج if it was present
+    if dubbed_suffix:
+        result += dubbed_suffix
+    
+    return result.strip()
+
 def is_english_name(text):
     """
     Check if the given text is primarily in English.
@@ -46,6 +114,8 @@ def extract_show_info(stream_name):
     
     if match:
         show_name = match.group(1).strip()
+        # Reorder mixed language parts in show name
+        show_name = reorder_mixed_language(show_name)
         season = match.group(2)
         episode = match.group(3)
         return show_name, season, episode
